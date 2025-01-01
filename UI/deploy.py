@@ -8,9 +8,11 @@ import cv2
 import streamlit as st 
 from torchvision.transforms import ToTensor, ToPILImage
 from basicsr.utils import img2tensor
+import PIL.Image as pil_image
 import time
 from torch.utils import data as data
 import cv2
+from Image_Super_Resolution.FSRCNN.utils import preprocess
 
 # Import model here
 from Image_Super_Resolution.SwinIR.models.network_swinir import SwinIR
@@ -29,7 +31,7 @@ model_swinir = SwinIR(upscale=4, in_chans=3, img_size=64, window_size=8, img_ran
                mlp_ratio=2, upsampler='pixelshuffle', resi_connection='1conv')
 
 model_srgan = model_swinir
-model_fsrcnn = model_swinir
+model_fsrcnn = FSRCNN(scale_factor= 4)
 model_diffIR_SR = DiffIRS2SR(n_encoder_res= 9, dim= 64, scale=4,num_blocks= [13,1,1,1],
                                    num_refinement_blocks= 13,heads= [1,2,4,8], ffn_expansion_factor= 2.2,LayerNorm_type= "BiasFree")
 model_diffIR_DB = DiffIRS2DB(n_encoder_res = 5, dim = 48, num_blocks = [3,5,6,6], 
@@ -40,7 +42,7 @@ model_nafnet = model_swinir
 # model_path = 'model_zoo/001_classicalSR_DF2K_s64w8_SwinIR-M_x4.pth'
 model_path_swinir = 'Image_Super_Resolution/SwinIR/model_zoo/model_weight_X4_swinir.pth'
 model_path_srgan = model_path_swinir
-model_path_fsrcnn = model_path_swinir
+model_path_fsrcnn = 'Restora_Vision\Image_Super_Resolution\FSRCNN\model\fsrcnn_x4.pth'
 model_path_diffIR_SR = "Image_Super_Resolution/DiffIR_SR/DiffIR/weights/RealworldSR-DiffIRS2x4.pth"
 model_path_diffIR_DB = "Image_Deblurring/DiffIR_Deblur/DiffIR/weights/Deblurring-DiffIRS2.pth"
 model_path_nafnet = model_path_swinir
@@ -118,7 +120,48 @@ def postprocess_image_diffIR_db(sr, mod_pad_h, mod_pad_w):
     output_image = (output_image * 255).astype(np.uint8)  # Convert to [0, 255]
     return output_image
 
+def fsrcnn_predict(model, lr_image):
+    """
+    Predict a super-resolved image using the FSRCNN model.
 
+    Args:
+        model (torch.nn.Module): Pre-trained FSRCNN model.
+        lr_image (PIL.Image.Image): Low-resolution input image (PIL format).
+
+    Returns:
+        sr_image_cv (np.ndarray): Super-resolved image in OpenCV format (BGR).
+        sr_rgb_image (PIL.Image.Image): Super-resolved image in PIL format (RGB).
+    """
+    # Convert LR image to tensor
+    lr_ycbcr = lr_image.convert('YCbCr')
+    lr_y, lr_cb, lr_cr = lr_ycbcr.split()
+    lr_tensor = torch.from_numpy(np.array(lr_y)).float().div(255.0).unsqueeze(0).unsqueeze(0).to(next(model.parameters()).device)
+
+    # Perform inference
+    with torch.no_grad():
+        preds = model(lr_tensor).clamp(0.0, 1.0)
+
+    # Convert SR tensor to image (Y channel)
+    sr_y_channel = preds.mul(255.0).byte().cpu().numpy().squeeze(0).squeeze(0)
+
+    # Resize Cb, Cr to match SR image dimensions
+    lr_cb_resized = lr_cb.resize((sr_y_channel.shape[1], sr_y_channel.shape[0]), resample=pil_image.BICUBIC)
+    lr_cr_resized = lr_cr.resize((sr_y_channel.shape[1], sr_y_channel.shape[0]), resample=pil_image.BICUBIC)
+
+    # Merge SR Y channel with resized Cb, Cr channels
+    sr_ycbcr = pil_image.merge('YCbCr', (
+        pil_image.fromarray(sr_y_channel, mode='L'),
+        lr_cb_resized,
+        lr_cr_resized
+    ))
+
+    # Convert YCbCr to RGB
+    sr_rgb_image = sr_ycbcr.convert('RGB')
+
+    # Convert to OpenCV format for visualization
+    # sr_image_cv = cv2.cvtColor(np.array(sr_rgb_image), cv2.COLOR_RGB2BGR)
+
+    return sr_rgb_image
 
 # Streamlit app
 st.title("Image Processing with RestoraVision")
@@ -137,6 +180,7 @@ if task == "Resolution Enhancement":
         model = model_diffIR_SR
     else: 
         model = model_fsrcnn
+        
 else:
     model_choice = st.selectbox("Select a Model", ("DiffIR", "NAF Net"))
     model = model_diffIR_DB if model_choice == "DiffIR" else model_nafnet
