@@ -15,6 +15,8 @@ import cv2
 # Import model here
 from Image_Super_Resolution.SwinIR.models.network_swinir import SwinIR
 
+from Image_Super_Resolution.SRGAN.model.model import Generator as SRGAN
+
 from Image_Super_Resolution.DiffIR_SR.DiffIR.archs.S2_arch import DiffIRS2 as DiffIRS2SR
 from Image_Super_Resolution.DiffIR_SR.infer import pad_test_sr
 
@@ -28,7 +30,7 @@ model_swinir = SwinIR(upscale=4, in_chans=3, img_size=64, window_size=8, img_ran
                depths=[6, 6, 6, 6, 6, 6], embed_dim=180, num_heads=[6, 6, 6, 6, 6, 6],
                mlp_ratio=2, upsampler='pixelshuffle', resi_connection='1conv')
 
-model_srgan = model_swinir
+model_srgan = SRGAN(in_channels=3)
 model_fsrcnn = model_swinir
 model_diffIR_SR = DiffIRS2SR(n_encoder_res= 9, dim= 64, scale=4,num_blocks= [13,1,1,1],
                                    num_refinement_blocks= 13,heads= [1,2,4,8], ffn_expansion_factor= 2.2,LayerNorm_type= "BiasFree")
@@ -39,7 +41,7 @@ model_nafnet = model_swinir
 
 # model_path = 'model_zoo/001_classicalSR_DF2K_s64w8_SwinIR-M_x4.pth'
 model_path_swinir = 'Image_Super_Resolution/SwinIR/model_zoo/model_weight_X4_swinir.pth'
-model_path_srgan = model_path_swinir
+model_path_srgan = 'Image_Super_Resolution/SRGAN/checkpoint/gen.pth.tar'
 model_path_fsrcnn = model_path_swinir
 model_path_diffIR_SR = "Image_Super_Resolution/DiffIR_SR/DiffIR/weights/RealworldSR-DiffIRS2x4.pth"
 model_path_diffIR_DB = "Image_Deblurring/DiffIR_Deblur/DiffIR/weights/Deblurring-DiffIRS2.pth"
