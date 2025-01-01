@@ -209,6 +209,10 @@ if uploaded_file:
                     with torch.no_grad():
                         sr_torch = model(lr_torch)
                         sr_image = postprocess_image_diffIR_sr(sr_torch, mod_pad_h, mod_pad_w)
+                
+                elif model_choice == "FSRCNN":
+                    sr_image = fsrcnn_predict(model, input_image)
+                    
                 else:
  
                     with torch.no_grad():
