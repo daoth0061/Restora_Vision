@@ -12,6 +12,7 @@ import time
 from torch.utils import data as data
 import cv2
 
+
 # Import model here
 from Image_Super_Resolution.SwinIR.models.network_swinir import SwinIR
 
@@ -64,6 +65,48 @@ load_model(model_path_diffIR_SR, model_diffIR_SR, DEVICE)
 load_model(model_path_diffIR_DB, model_diffIR_DB, DEVICE)
 load_model(model_path_nafnet, model_nafnet, DEVICE)
 
+def fsrcnn_predict(model, lr_image):
+    """
+    Predict a super-resolved image using the FSRCNN model.
+
+    Args:
+        model (torch.nn.Module): Pre-trained FSRCNN model.
+        lr_image (PIL.Image.Image): Low-resolution input image (PIL format).
+
+    Returns:
+        sr_image_cv (np.ndarray): Super-resolved image in OpenCV format (BGR).
+        sr_rgb_image (PIL.Image.Image): Super-resolved image in PIL format (RGB).
+    """
+    # Convert LR image to tensor
+    lr_ycbcr = lr_image.convert('YCbCr')
+    lr_y, lr_cb, lr_cr = lr_ycbcr.split()
+    lr_tensor = torch.from_numpy(np.array(lr_y)).float().div(255.0).unsqueeze(0).unsqueeze(0).to(next(model.parameters()).device)
+
+    # Perform inference
+    with torch.no_grad():
+        preds = model(lr_tensor).clamp(0.0, 1.0)
+
+    # Convert SR tensor to image (Y channel)
+    sr_y_channel = preds.mul(255.0).byte().cpu().numpy().squeeze(0).squeeze(0)
+
+    # Resize Cb, Cr to match SR image dimensions
+    lr_cb_resized = lr_cb.resize((sr_y_channel.shape[1], sr_y_channel.shape[0]), resample=pil_image.BICUBIC)
+    lr_cr_resized = lr_cr.resize((sr_y_channel.shape[1], sr_y_channel.shape[0]), resample=pil_image.BICUBIC)
+
+    # Merge SR Y channel with resized Cb, Cr channels
+    sr_ycbcr = pil_image.merge('YCbCr', (
+        pil_image.fromarray(sr_y_channel, mode='L'),
+        lr_cb_resized,
+        lr_cr_resized
+    ))
+
+    # Convert YCbCr to RGB
+    sr_rgb_image = sr_ycbcr.convert('RGB')
+
+    # Convert to OpenCV format for visualization
+    # sr_image_cv = cv2.cvtColor(np.array(sr_rgb_image), cv2.COLOR_RGB2BGR)
+
+    return sr_rgb_image
 
 
 def preprocess_image(image, device):
