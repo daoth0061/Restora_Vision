@@ -1,6 +1,6 @@
 import sys
 import os
-sys.path.append(os.path.abspath("."))
+# sys.path.append(os.path.abspath("."))
 
 
 import time
@@ -54,8 +54,8 @@ from Image_Super_Resolution.DiffIR_SR.infer import pad_test_sr
 from Image_Deblurring.DiffIR_Deblur.DiffIR.archs.S2_arch import DiffIRS2 as DiffIRS2DB
 from Image_Deblurring.DiffIR_Deblur.infer import pad_test_db
 
-from Colorization.DDColor.ddcolor_model import DDColor
-from Colorization.DDColor.basicsr.archs.ddcolor_arch_utils.unet import Hook, CustomPixelShuffle_ICNR,  UnetBlockWide, NormType, custom_conv_layer
+from DDColor.ddcolor_model import DDColor
+from DDColor._basicsr.archs.ddcolor_arch_utils.unet import Hook, CustomPixelShuffle_ICNR,  UnetBlockWide, NormType, custom_conv_layer
 
 
 
@@ -64,12 +64,16 @@ model_swinir = SwinIR(upscale=4, in_chans=3, img_size=64, window_size=8, img_ran
                depths=[6, 6, 6, 6, 6, 6], embed_dim=180, num_heads=[6, 6, 6, 6, 6, 6],
                mlp_ratio=2, upsampler='pixelshuffle', resi_connection='1conv')
 
-model_srgan = SRGAN(in_channels=3)
-model_rcan = load_rcan_model()
-model_diffIR_SR = DiffIRS2SR(n_encoder_res= 9, dim= 64, scale=4,num_blocks= [13,1,1,1],
-                                   num_refinement_blocks= 13,heads= [1,2,4,8], ffn_expansion_factor= 2.2,LayerNorm_type= "BiasFree")
-model_diffIR_DB = DiffIRS2DB(n_encoder_res = 5, dim = 48, num_blocks = [3,5,6,6], 
-                           num_refinement_blocks = 4, heads = [1,2,4,8], ffn_expansion_factor = 2,LayerNorm_type= "WithBias")
+# model_srgan = SRGAN(in_channels=3)
+model_srgan = model_swinir
+# model_rcan = load_rcan_model()
+model_rcan = model_swinir
+# model_diffIR_SR = DiffIRS2SR(n_encoder_res= 9, dim= 64, scale=4,num_blocks= [13,1,1,1],
+                                #    num_refinement_blocks= 13,heads= [1,2,4,8], ffn_expansion_factor= 2.2,LayerNorm_type= "BiasFree")
+model_diffIR_SR = model_swinir
+# model_diffIR_DB = DiffIRS2DB(n_encoder_res = 5, dim = 48, num_blocks = [3,5,6,6], 
+                        #    num_refinement_blocks = 4, heads = [1,2,4,8], ffn_expansion_factor = 2,LayerNorm_type= "WithBias")
+model_diffIR_DB = model_swinir
 model_nafnet = model_swinir
 model_ddcolor = DDColor(
             encoder_name='convnext-l',
@@ -86,11 +90,14 @@ model_ddcolor = DDColor(
 
 # model_path = 'model_zoo/001_classicalSR_DF2K_s64w8_SwinIR-M_x4.pth'
 model_path_swinir = 'Image_Super_Resolution/SwinIR/model_zoo/model_weight_X4_swinir.pth'
-model_path_srgan = 'Image_Super_Resolution/SRGAN/checkpoint/gen.pth.tar'
-model_path_diffIR_SR = "Image_Super_Resolution/DiffIR_SR/DiffIR/weights/RealworldSR-DiffIRS2x4.pth"
-model_path_diffIR_DB = "Image_Deblurring/DiffIR_Deblur/DiffIR/weights/Deblurring-DiffIRS2.pth"
+model_path_srgan = model_path_swinir
+model_path_diffIR_SR = model_path_swinir
+model_path_diffIR_DB = model_path_swinir
+# model_path_srgan = 'Image_Super_Resolution/SRGAN/checkpoint/gen.pth.tar'
+# model_path_diffIR_SR = "Image_Super_Resolution/DiffIR_SR/DiffIR/weights/RealworldSR-DiffIRS2x4.pth"
+# model_path_diffIR_DB = "Image_Deblurring/DiffIR_Deblur/DiffIR/weights/Deblurring-DiffIRS2.pth"
 model_path_nafnet = model_path_swinir
-model_path_ddcolor = 'Colorization/DDColor/weights/pytorch_model.pt'
+model_path_ddcolor = 'DDColor/weights/pytorch_model.pt'
 
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -269,7 +276,7 @@ if uploaded_file:
     before = time.time()
     input_image = Image.open(uploaded_file).convert("RGB")
     if task == "Colorization":
-        gray_img_rgb = generate_grayscale_rgb(input_image)  # ảnh RGB xám
+        gray_img_rgb = generate_grayscale_rgb(np.array(input_image))  # ảnh RGB xám
         input_image = Image.fromarray((gray_img_rgb * 255).astype(np.uint8))  # chuyển lại thành PIL.Image
 
     # Hiển thị ảnh (gốc hoặc đã xám hóa tùy task)
@@ -302,8 +309,8 @@ if uploaded_file:
                         sr_image = postprocess_image_diffIR_db(sr_torch, mod_pad_h, mod_pad_w)
             else:
                 # Load ảnh và tô màu
-                input_img = Image.open("input.jpg")
-                sr_image = colorize_image(input_img, model_ddcolor, device="cuda")
+                # input_img = Image.open("input.jpg")
+                sr_image = colorize_image(input_image, model_ddcolor, device="cuda")
 
                 
 
